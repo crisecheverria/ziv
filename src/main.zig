@@ -13,5 +13,5 @@ pub fn main(init: std.process.Init) !void {
     var editor = try ziv.Editor.init(arena, path);
     defer editor.deinit();
 
-    try editor.run();
+    try editor.run(init.io);
 }
