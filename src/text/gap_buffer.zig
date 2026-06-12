@@ -126,7 +126,7 @@ pub const GapBuffer = struct {
     }
     fn vtByteAt(ptr: *anyopaque, off: usize) u8 {
         const self: *GapBuffer = @ptrCast(@alignCast(ptr));
-        return self.bytAt(off);
+        return self.byteAt(off);
     }
     fn vtInsert(ptr: *anyopaque, off: usize, bytes: []const u8) anyerror!void {
         const self: *GapBuffer = @ptrCast(@alignCast(ptr));

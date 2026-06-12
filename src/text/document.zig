@@ -6,6 +6,7 @@ const Allocator = std.mem.Allocator;
 const GapBuffer = @import("gap_buffer.zig").GapBuffer;
 const LineIndex = @import("line_index.zig").LineIndex;
 const History = @import("undo.zig").History;
+const TextStore = @import("store.zig").TextStore;
 
 pub const Document = struct {
     buffer: GapBuffer,
@@ -24,6 +25,24 @@ pub const Document = struct {
         self.buffer.deinit();
     }
 
-    // TODO Phase 1: openFile(path) -> read into buffer, build line index.
+    pub fn openFile(self: *Document, path: []const u8) !void {
+        const io = std.Io.Threaded.global_single_threaded.io();
+        const file = try std.Io.Dir.cwd().openFile(io, path, .{});
+        defer file.close(io);
+
+        var buf: [4096]u8 = undefined;
+        var reader = file.reader(io, &buf);
+        const contents = try reader.allocRemaining(self.allocator, .limited(128 * 1024 * 1024));
+        defer self.allocator.free(contents);
+
+        try self.buffer.loadBytes(contents);
+        self.path = path;
+        self.dirty = false;
+        try self.line_index.rebuild(self.allocator, self.store());
+    }
+
+    pub fn store(self: *Document) TextStore {
+        return self.buffer.textStore();
+    }
     // TODO Phase 3: insert/delete that update line_index, history, and dirty.
 };
