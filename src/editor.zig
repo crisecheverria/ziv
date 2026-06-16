@@ -10,12 +10,15 @@ const Key = @import("terminal/key.zig").Key;
 const Mode = @import("edit/mode.zig").Mode;
 const Document = @import("text/document.zig").Document;
 const Window = @import("ui/window.zig").Window;
+const Screen = @import("ui/screen.zig").Screen;
+const Renderer = @import("ui/render.zig").Renderer;
 
 pub const Editor = struct {
     allocator: Allocator,
     mode: Mode = .normal,
     document: Document,
     window: Window = .{},
+    screen: Screen,
     /// Set whenever visible state changes; gates rendering so we never redraw
     /// an unchanged screen.
     dirty: bool = true,
@@ -24,7 +27,7 @@ pub const Editor = struct {
     pub fn init(allocator: Allocator, path: ?[]const u8) !Editor {
         var document = Document.init(allocator);
         if (path) |p| document.path = p; // TODO Phase 1: actually load the file
-        return .{ .allocator = allocator, .document = document };
+        return .{ .allocator = allocator, .document = document, .screen = Screen.init(allocator) };
     }
 
     pub fn deinit(self: *Editor) void {
@@ -37,20 +40,21 @@ pub const Editor = struct {
         var term = try Terminal.init(io);
         defer term.deinit();
 
+        const sz = try term.size();
+        try self.screen.resize(sz.cols, sz.rows -| 1); // Reverse botom row for
+        // status
+        self.window.width = sz.cols;
+        self.window.height = sz.rows -| 1;
+
         var parser = Parser{};
-        var out: std.ArrayList(u8) = .empty;
-        defer out.deinit(self.allocator);
-
         var read_buf: [64]u8 = undefined;
-
         self.running = true;
         self.dirty = true;
 
         while (self.running) {
             if (self.dirty) {
-                const sz = try term.size();
-                try self.drawWelcome(&out, self.allocator, sz.rows, sz.cols);
-                try term.tty.writeStreamingAll(io, out.items);
+                Renderer.render(&self.screen, &self.document, self.window);
+                try self.screen.flush(io, term.tty);
                 self.dirty = false;
             }
 
