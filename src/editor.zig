@@ -26,7 +26,7 @@ pub const Editor = struct {
 
     pub fn init(allocator: Allocator, path: ?[]const u8) !Editor {
         var document = Document.init(allocator);
-        if (path) |p| document.path = p; // TODO Phase 1: actually load the file
+        if (path) |p| try document.openFile(p);
         return .{ .allocator = allocator, .document = document, .screen = Screen.init(allocator) };
     }
 
@@ -60,44 +60,37 @@ pub const Editor = struct {
 
             const n = try term.tty.readStreaming(io, &.{read_buf[0..]});
             if (n == 0) continue;
-
             parser.feed(read_buf[0..n]);
             while (parser.next()) |key| {
-                switch (key) {
-                    .ctrl => |c| if (c == 'q') {
-                        self.running = false;
-                        break;
-                    },
-                    else => {
-                        self.dirty = true;
-                    },
-                }
+                try self.handleKey(key);
             }
         }
     }
 
-    fn drawWelcome(self: *Editor, buf: *std.ArrayList(u8), gpa: Allocator, rows: usize, cols: usize) !void {
-        _ = self;
-        buf.clearRetainingCapacity();
-
-        try buf.appendSlice(gpa, "\x1b[?25l\x1b[2J\x1b[H"); // hide cursor, clear, home
-
-        const msg = "ziv -- press Ctrl-Q to quit";
-        const row = rows / 2;
-        const col = (cols -| msg.len) / 2;
-
-        // Fill each row with ~ (vim-style)
-        var r: usize = 0;
-        while (r < rows) : (r += 1) {
-            try buf.print(gpa, "\x1b[{d};1H", .{r + 1});
-            if (r == row) {
-                try buf.print(gpa, "\x1b[{d}G{s}", .{ col + 1, msg });
-            } else if (r == 0) {
-                // skip — top line is content area
-            } else {
-                try buf.appendSlice(gpa, "~");
-            }
+    fn handleKey(self: *Editor, key: Key) !void {
+        switch (key) {
+            .ctrl => |c| if (c == 'q') {
+                self.running = false;
+                return;
+            },
+            .char => |ch| switch (ch) {
+                'j' => self.scrollDown(1),
+                'k' => self.scrollUp(1),
+                else => {},
+            },
+            .down => self.scrollDown(1),
+            .up => self.scrollUp(1),
+            else => {},
         }
-        try buf.appendSlice(gpa, "\x1b[?25h"); // show cursor
+        self.dirty = true;
+    }
+
+    fn scrollDown(self: *Editor, n: usize) void {
+        const max = self.document.line_index.lineCount() -| self.window.height;
+        self.window.top_line = @min(self.window.top_line + n, max);
+    }
+
+    fn scrollUp(self: *Editor, n: usize) void {
+        self.window.top_line -|= n;
     }
 };

@@ -32,7 +32,7 @@ pub const Document = struct {
 
         var buf: [4096]u8 = undefined;
         var reader = file.reader(io, &buf);
-        const contents = try reader.allocRemaining(self.allocator, .limited(128 * 1024 * 1024));
+        const contents = try reader.interface.allocRemaining(self.allocator, .limited(128 * 1024 * 1024));
         defer self.allocator.free(contents);
 
         try self.buffer.loadBytes(contents);

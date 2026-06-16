@@ -81,6 +81,7 @@ pub const Screen = struct {
                 self.front.items[idx] = back;
             }
         }
+        try self.out.appendSlice(self.allocator, "\x1b[1;1H"); // park cursor at top-left (Phase 2 will move it to the real cursor position)
         try self.out.appendSlice(self.allocator, "\x1b[?25h"); // show cursor
         try tty.writeStreamingAll(io, self.out.items);
     }
